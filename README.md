@@ -6,7 +6,7 @@ To use `PyMaxEnt`, a single function call to `reconstruct(moments, ivars, bnds, 
 
 When `ivars` is provided, the reconstruction assumes a discrete distribution. When a discrete reconstruction is chosen, `scaling` should be an array of the same size as `ivars`.
 
-In addition, a helper routine named `moments` can be used to calculate the first k moments of a function.
+More details can be found in `src/pymaxent.py`.
 
 ## Sample code snippets
 
@@ -29,7 +29,7 @@ sol, lambdas = reconstruct(mu,x=x,scaling=f)
 ```
 
 Similarly, for a continuous distribution, one passes a list of input moments. 
-In this case, however, one must specify the bounds (\texttt{bnds}) to indicate that this is a continuous reconstruction. 
+In this case, however, one must specify the bounds (`bnds`) to indicate that this is a continuous reconstruction. 
 Here's an example for a Gaussian distribution
 ```python
 from pymaxent import *
