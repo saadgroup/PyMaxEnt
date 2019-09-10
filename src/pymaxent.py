@@ -47,7 +47,7 @@ def moments_d(f,k,x):
     Parameters:
         f (array): an array of values for a discrete distribution        
         k (int): number of moments to compute. Will evaluate the first k moments of f, μ0, μ1, ..., μ(k-1)        
-        x (array): list or array of independent variables        
+        x (array): list or array containing the values of the random variable over which the distribution is to be integrated
 
     Returns:
         mom: an array of length k containing the moments for the known distribution
@@ -59,14 +59,14 @@ def moments_d(f,k,x):
         mom.append(np.sum(xpf)) # compute moment: sum(x^p * f(x))
     return np.array(moms)
 
-def moments(f, k, ivars=None, bnds=None):
+def moments(f, k, rndvar=None, bnds=None):
     '''
-    Computes the first "k" moments of a function "f" on the support given by "bnd". If "ivars" is provided, then a discrete distribution is assumed and "f" ##must## be a list or array of scalar values.
+    Computes the first "k" moments of a function "f" on the support given by "bnd". If "rndvar" is provided, then a discrete distribution is assumed and "f" ##must## be a list or array of scalar values.
 
     Parameters:
         f (function): distribution function **must be in the form of a function**
         k (integer): will evaluate the first k moments of f, μ0, μ1, ..., μ(k-1)
-        ivars (array): optional - designates a list or array of discrete values for an independent variable. If x is provided, then the moments will be computed based on a discrete distribution. This means that f must be an array as well.
+        rndvar (array): optional - designates a list or array of discrete values for a random variable. If x is provided, then the moments will be computed based on a discrete distribution. This means that f must be an array as well.
         bnds (tuple): a list of two numbers consisting of the lower and upper bounds of the support    
     
     Returns:
@@ -75,10 +75,10 @@ def moments(f, k, ivars=None, bnds=None):
     Example:
         μ = moments(3, f, [-1, 1])    
     '''    
-    if ivars is not None:
+    if rndvar is not None:
         if bnds is not None:
             print('WARNING: You specified BOTH x and boundaries. I will assume this is a discrete distribution. If you want to calculate a continuous distribution, please specify bnd ONLY.')
-        return moments_d(f,k,ivars)
+        return moments_d(f,k,rndvar)
     else:
         return moments_c(f,k,bnds)
 
@@ -87,8 +87,8 @@ def integrand(x, lamb, m, k=0, discrete=False):
     Calculates the integrand of the \(k^\mathrm{th}\) moment.
 
     Parameters:
-        x (array): linear space or set of independent variables on which the integrand is applied
-        lamb (array): an array of Lagrange constants used to approximate the distribution
+        x (array): linear space or set of values for a random variable on which the integrand is applied
+        lamb (array): an array of Lagrange multipliers used to approximate the distribution
         m: invariant measure or scaling function. if `discrete` is True, then `m` **must be an array**, otherwise, `m` is a generic python function of the form `m(x)`
         k (integer): a constant representing the order of the moment being calculated
 
@@ -121,14 +121,14 @@ def residual_d(lamb,x,k,mu,m=1):
         l_sum.append( np.sum(integrand(x,lamb,m,i,discrete=True)) - mu[i] )
     return np.array(l_sum)
 
-def maxent_reconstruct_d(ivars, mu, m):
+def maxent_reconstruct_d(rndvar, mu, m):
     '''
     Computes the most likely distribution from the moments given using maximum entropy theorum.
 
     Parameters:
-        ivars (array): a list or array of known dependent variables. For example, for a 6-faced die, ivars=[1,2,3,4,5,6]
+        rndvar (array): a list or array of known dependent variables. For example, for a 6-faced die, rndvar=[1,2,3,4,5,6]
         mu (array): vector of size m containing the known moments of a distribution. This does NOT assume that μ0 = 1. This vector contains moments μ_k starting with μ_0, μ_1, etc... For example, μ = [1,0,0]
-        m (array): invariant measure or scaling function. **Must be an array of the same size as `ivars`
+        m (array): invariant measure or scaling function. **Must be an array of the same size as `rndvar`
 
     Returns:
         probabilites: vector of size b (from bnd[1]) containing the probabilities for the distribution 
@@ -137,8 +137,8 @@ def maxent_reconstruct_d(ivars, mu, m):
     lambguess = np.zeros(len(mu))
     lambguess[0] = -np.log(np.sqrt(2*np.pi))
     k = len(mu)
-    lambsol = fsolve(residual_d, lambguess, args = (ivars,k,mu,m))
-    probabilites = integrand(ivars, lambsol, m, k=0, discrete=True)    
+    lambsol = fsolve(residual_d, lambguess, args = (rndvar,k,mu,m))
+    probabilites = integrand(rndvar, lambsol, m, k=0, discrete=True)    
     return probabilites, lambsol
 
 
@@ -186,15 +186,15 @@ def maxent_reconstruct_c(mu, bnds=[-np.inf, np.inf], m=None):
     recon = lambda x: integrand(x, lambsol, m, k=0)
     return recon, lambsol
 
-def reconstruct(mu, ivars=None, bnds=None, scaling=None):
+def reconstruct(mu, rndvar=None, bnds=None, scaling=None):
     '''
     This is the main function call to generate maximum entropy solutions.
     
     Parameters:
         mu (array): a list or array of known moments
-        ivars (array): optional - a list or array of known dependent variables. For example, for a 6-faced die, ivars=[1,2,3,4,5,6]. If ivars is provided, we will assume a discrete reconstruction.
-        bnds (tuple): a tuple [a,b] containing the bounds or support of the reconstructed solution. This is only required for continuous distributions and will be neglected if ivars is provided.
-        scaling (function/array): this is the invariant measure or scaling function. If ivars is provided (i.e. a discrete distribution reconstruction), then scaling ##must## be a list or an array of scalar values.
+        rndvar (array): optional - a list or array of known dependent variables. For example, for a 6-faced die, rndvar=[1,2,3,4,5,6]. If rndvar is provided, we will assume a discrete reconstruction.
+        bnds (tuple): a tuple [a,b] containing the bounds or support of the reconstructed solution. This is only required for continuous distributions and will be neglected if rndvar is provided.
+        scaling (function/array): this is the invariant measure or scaling function. If rndvar is provided (i.e. a discrete distribution reconstruction), then scaling ##must## be a list or an array of scalar values.
     
     Returns:
         recon: reconstructed distribution. If continuous, then `recon` is a Python function, `f(x)`. If discrete, then recon is an array of probabilities.
@@ -205,7 +205,7 @@ def reconstruct(mu, ivars=None, bnds=None, scaling=None):
         >>> from pymaxent import *
         >>> mu = [1,3.5]
         >>> x = [1,2,3,4,5,6]
-        >>> sol, lambdas = reconstruct(mu,ivars=x)
+        >>> sol, lambdas = reconstruct(mu,rndvar=x)
 
         ### reconstruct a scaled distribution
         >>> from pymaxent import *
@@ -231,15 +231,15 @@ def reconstruct(mu, ivars=None, bnds=None, scaling=None):
     '''
     result = 0
     # Discrete case
-    if ivars is not None:
-        ivars = np.array(ivars) # convert things to numpy arrays
+    if rndvar is not None:
+        rndvar = np.array(rndvar) # convert things to numpy arrays
         if bnds is not None:
             print('WARNING: You specified BOTH x and boundaries. I will assume this is a discrete distribution. If you want to calculate a continuous distribution, please specify bnd ONLY.')
         if scaling is None:
             # if the invariant measure is not provided, then assume it is one
-            scaling = np.ones(len(ivars))
+            scaling = np.ones(len(rndvar))
         scaling = np.array(scaling)
-        result = maxent_reconstruct_d(ivars, mu, scaling)
+        result = maxent_reconstruct_d(rndvar, mu, scaling)
     # Continuous case
     else:
         if scaling is None:
