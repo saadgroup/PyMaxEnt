@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyMaxEnt"
+version = "1.0.0"
+authors = [
+    {name = "Tony Saad", email = "tony.saad@chemeng.utah.edu"},
+    {name = "Giovanna Ruai"},
+]
+license = { text = "MIT" }
+description = "Implements a maximum entropy reconstruction of distributions with known moments."
+
+dependencies = [
+    "numpy",
+    "scipy",
+]
