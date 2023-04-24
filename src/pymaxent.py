@@ -56,7 +56,7 @@ def moments_d(f,k,x):
     for i in range(0,k):
         xp = np.power(x,i)      # compute x^p
         xpf = np.dot(xp,f)      # compute x^p * f(x)
-        mom.append(np.sum(xpf)) # compute moment: sum(x^p * f(x))
+        moms.append(np.sum(xpf)) # compute moment: sum(x^p * f(x))
     return np.array(moms)
 
 def moments(f, k, rndvar=None, bnds=None):
@@ -101,14 +101,13 @@ def integrand(x, lamb, k=0, discrete=False):
     else:
         return x**k * np.exp(np.dot(lamb, xi))
 
-def residual_d(lamb,x,k,mu):
+def residual_d(lamb,x,mu):
     '''
     Calculates the residual of the moment approximation function.
 
     Parameters:
         lamb (array): an array of Lagrange constants used to approximate the distribution
         x (array): 
-        k (integer): order of the moment        
         mu (array): an array of the known moments needed to approximate the distribution function
     
     Returns:
@@ -133,8 +132,7 @@ def maxent_reconstruct_d(rndvar, mu):
     '''
     lambguess = np.zeros(len(mu))
     lambguess[0] = -np.log(np.sqrt(2*np.pi))
-    k = len(mu)
-    lambsol = fsolve(residual_d, lambguess, args = (rndvar,k,mu))
+    lambsol = fsolve(residual_d, lambguess, args = (rndvar,mu))
     probabilites = integrand(rndvar, lambsol, k=0, discrete=True)    
     return probabilites, lambsol
 

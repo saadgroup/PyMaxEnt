@@ -16,7 +16,7 @@ Below are some examples of using the \MaxEnt software. Starting with an example 
 from pymaxent import *
 mu = [1,3.5]
 x = [1,2,3,4,5,6]
-sol, lambdas = reconstruct(mu,ivars=x)
+sol, lambdas = reconstruct(mu,rndvar=x)
 ```
 
 Similarly, for a continuous distribution, one passes a list of input moments. 
