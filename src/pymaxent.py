@@ -13,7 +13,7 @@ __status__     = "Production"
 
 import numpy as np
 from scipy.integrate import quad
-from scipy.optimize import fsolve
+from scipy.optimize import root
 
 def moments_c(f, k=0, bnds=[-np.inf, np.inf]):
     '''
@@ -31,16 +31,16 @@ def moments_c(f, k=0, bnds=[-np.inf, np.inf]):
         μ = moments(3, f, [-1, 1])    
     '''
     def mom(x, k):
-        return x**k*f(x)
-    
+        return x**k * f(x)
+
     moms = np.zeros(k)
     a = bnds[0]
     b = bnds[1]
-    for i in range(0,k):
-        moms[i] = quad(mom,a,b,args = i)[0]
+    for i in range(0, k):
+        moms[i] = quad(mom, a, b, args=i)[0]
     return moms
 
-def moments_d(f,k,x):
+def moments_d(f, k, x):
     '''
     Calculates the first "k" moments: μ0, μ1, ..., μ(k-1) of a discrete distribution "f".
     
@@ -50,18 +50,20 @@ def moments_d(f,k,x):
         x (array): list or array containing the values of the random variable over which the distribution is to be integrated
 
     Returns:
-        mom: an array of length k containing the moments for the known distribution
+        moms: an array of length k containing the moments for the known distribution
     '''
+    x = np.asarray(x)
+    f = np.asarray(f)
     moms = []
-    for i in range(0,k):
-        xp = np.power(x,i)      # compute x^p
-        xpf = np.dot(xp,f)      # compute x^p * f(x)
-        mom.append(np.sum(xpf)) # compute moment: sum(x^p * f(x))
+    for i in range(0, k):
+        xp  = np.power(x, i)       # compute x^i
+        xpf = np.dot(xp, f)        # compute sum(x^i * f(x))
+        moms.append(xpf)            # fix: was mom.append (NameError in original)
     return np.array(moms)
 
 def moments(f, k, rndvar=None, bnds=None):
     '''
-    Computes the first "k" moments of a function "f" on the support given by "bnd". If "rndvar" is provided, then a discrete distribution is assumed and "f" ##must## be a list or array of scalar values.
+    Computes the first "k" moments of a function "f" on the support given by "bnd". If "rndvar" is provided, then a discrete distribution is assumed and "f" must be a list or array of scalar values.
 
     Parameters:
         f (function): distribution function **must be in the form of a function**
@@ -74,74 +76,77 @@ def moments(f, k, rndvar=None, bnds=None):
 
     Example:
         μ = moments(3, f, [-1, 1])    
-    '''    
+    '''
     if rndvar is not None:
         if bnds is not None:
             print('WARNING: You specified BOTH x and boundaries. I will assume this is a discrete distribution. If you want to calculate a continuous distribution, please specify bnd ONLY.')
-        return moments_d(f,k,rndvar)
+        return moments_d(f, k, rndvar)
     else:
-        return moments_c(f,k,bnds)
+        return moments_c(f, k, bnds)
 
 def integrand(x, lamb, k=0, discrete=False):
     '''
-    Calculates the integrand of the \(k^\mathrm{th}\) moment.
+    Calculates the integrand of the k-th moment.
 
     Parameters:
         x (array): linear space or set of values for a random variable on which the integrand is applied
         lamb (array): an array of Lagrange multipliers used to approximate the distribution
         k (integer): a constant representing the order of the moment being calculated
+        discrete (bool): unused, kept for backwards compatibility
 
     Returns:
-        integrand: the caclulated portion of the integrand at each x value
+        integrand: the calculated portion of the integrand at each x value
     '''
     neqs = len(lamb)
     xi = np.array([x**i for i in range(0, neqs)])
-    if discrete:
-        return x**k * np.exp(np.dot(lamb, xi))
-    else:
-        return x**k * np.exp(np.dot(lamb, xi))
+    return x**k * np.exp(np.dot(lamb, xi))
 
-def residual_d(lamb,x,k,mu):
+def residual_d(lamb, x, k, mu):
     '''
-    Calculates the residual of the moment approximation function.
+    Calculates the residual of the moment approximation function for the discrete case.
 
     Parameters:
         lamb (array): an array of Lagrange constants used to approximate the distribution
-        x (array): 
-        k (integer): order of the moment        
+        x (array): values of the random variable
+        k (integer): number of moments
         mu (array): an array of the known moments needed to approximate the distribution function
     
     Returns:
-        rhs: the integrated right hand side of the moment approximation function
+        rhs: residual vector of length k
     '''
-    l_sum = []
-    for i in range(0,len(lamb)):
-        l_sum.append( np.sum(integrand(x,lamb,i,discrete=True)) - mu[i] )
-    return np.array(l_sum)
+    # Build Vandermonde-style powers matrix: shape (k, len(x))
+    # X[i,j] = x[j]^i
+    X   = np.vstack([x**i for i in range(k)])   # (k, n)
+    phi = np.exp(lamb @ X)                        # (n,)  -- partition fn, computed once
+    rhs = X @ phi - np.asarray(mu)               # (k,)  -- fully vectorized
+    return rhs
 
 def maxent_reconstruct_d(rndvar, mu):
     '''
-    Computes the most likely distribution from the moments given using maximum entropy theorum.
+    Computes the most likely distribution from the moments given using maximum entropy theorem.
 
     Parameters:
         rndvar (array): a list or array of known dependent variables. For example, for a 6-faced die, rndvar=[1,2,3,4,5,6]
         mu (array): vector of size m containing the known moments of a distribution. This does NOT assume that μ0 = 1. This vector contains moments μ_k starting with μ_0, μ_1, etc... For example, μ = [1,0,0]
 
     Returns:
-        probabilites: vector of size b (from bnd[1]) containing the probabilities for the distribution 
-        lambsol: vector of lagrangian multipliers
+        probabilities: vector containing the probabilities for the distribution 
+        lambsol: vector of Lagrangian multipliers
     '''
-    lambguess = np.zeros(len(mu))
-    lambguess[0] = -np.log(np.sqrt(2*np.pi))
-    k = len(mu)
-    lambsol = fsolve(residual_d, lambguess, args = (rndvar,k,mu))
-    probabilites = integrand(rndvar, lambsol, k=0, discrete=True)    
-    return probabilites, lambsol
+    mu       = np.asarray(mu)
+    k        = len(mu)
+    lambguess        = np.zeros(k)
+    lambguess[0]     = -np.log(np.sqrt(2 * np.pi))
+
+    sol = root(residual_d, lambguess, args=(rndvar, k, mu), method='hybr')
+    lambsol       = sol.x
+    probabilities = integrand(rndvar, lambsol, k=0)
+    return probabilities, lambsol
 
 
 def residual_c(lamb, mu, bnds):
     '''
-    Calculates the residual of the moment approximation function.
+    Calculates the residual of the moment approximation function for the continuous case.
     
     Parameters:
         lamb (array): an array of Lagrange constants used to approximate the distribution
@@ -149,37 +154,65 @@ def residual_c(lamb, mu, bnds):
         bnds (tuple): support bounds
 
     Returns:
-        rhs: the integrated right hand side of the moment approximation function
+        rhs: residual vector of length neqs
     '''
-    a = bnds[0]
-    b = bnds[1]
+    a    = bnds[0]
+    b    = bnds[1]
     neqs = len(lamb)
-    rhs = np.zeros(neqs)
-    for k in range(0, neqs):
+    rhs  = np.zeros(neqs)
+    for k in range(neqs):
         rhs[k] = quad(integrand, a, b, args=(lamb, k))[0] - mu[k]
     return rhs
 
+def jacobian_c(lamb, mu, bnds):
+    '''
+    Analytical Jacobian of residual_c.  J[i,j] = integral of x^(i+j) * exp(lambda . xi) dx,
+    which is the (i+j)-th moment of the MaxEnt distribution at the current lambda.
+
+    Parameters:
+        lamb (array): current Lagrange multipliers
+        mu (array): known moments (not used in computation, kept for signature compatibility with root)
+        bnds (tuple): support bounds
+
+    Returns:
+        J: (neqs x neqs) Jacobian matrix
+    '''
+    a    = bnds[0]
+    b    = bnds[1]
+    neqs = len(lamb)
+    J    = np.zeros((neqs, neqs))
+    for i in range(neqs):
+        for j in range(neqs):
+            J[i, j] = quad(integrand, a, b, args=(lamb, i + j))[0]
+    return J
+
 def maxent_reconstruct_c(mu, bnds=[-np.inf, np.inf]):
     '''
-    Used to construct a continuous distribution from a limited number of known moments(μ). This function applies Maximum Entropy Theory in order to solve for the constraints found in the approximation equation that is given as an output.
+    Used to construct a continuous distribution from a limited number of known moments (μ).
+    This function applies Maximum Entropy Theory in order to solve for the constraints found
+    in the approximation equation that is given as an output.
     
     Parameters:
-        μ: vector of size m containing the known moments of a distribution. This does NOT assume that μ0 = 1. This vector contains moments μ_k starting with μ_0, μ_1, etc...
+        mu: vector of size m containing the known moments of a distribution. This does NOT assume that μ0 = 1. This vector contains moments μ_k starting with μ_0, μ_1, etc...
             Ex. μ = [1,0,0]
         bnds: Support for the integration [a,b]
             ## It is important the bounds include roughly all non-zero values of the distribution that is being recreated ##
     
     Returns:
-        Distribution Function: The recreated probability distribution function from the moment vector (μ) input given. requires a support to be ploted
+        recon: the recreated probability distribution function from the moment vector (μ) input given, as a callable f(x)
+        lambsol: array of Lagrangian multipliers
     
     Example:
         >>> f, sol = maxent([1,0,0], [-1,1])        
     '''
-    neqs = len(mu)
-    lambguess = np.zeros(neqs) # initialize guesses
-    lambguess[0] = -np.log(np.sqrt(2*np.pi)) # set the first initial guess - this seems to work okay
-    lambsol = fsolve(residual_c, lambguess, args=(mu,bnds), col_deriv=True)
-    recon = lambda x: integrand(x, lambsol, k=0)
+    mu               = np.asarray(mu)
+    neqs             = len(mu)
+    lambguess        = np.zeros(neqs)
+    lambguess[0]     = -np.log(np.sqrt(2 * np.pi))
+
+    sol     = root(residual_c, lambguess, jac=jacobian_c, args=(mu, bnds), method='hybr')
+    lambsol = sol.x
+    recon   = lambda x: integrand(x, lambsol, k=0)
     return recon, lambsol
 
 def reconstruct(mu, rndvar=None, bnds=None):
@@ -193,7 +226,7 @@ def reconstruct(mu, rndvar=None, bnds=None):
     
     Returns:
         recon: reconstructed distribution. If continuous, then `recon` is a Python function, `f(x)`. If discrete, then recon is an array of probabilities.
-        lambsol (array): array containing the lagrangian multipliers
+        lambsol (array): array containing the Lagrangian multipliers
     
     Examples:
         ### reconstruct a discrete distribution
@@ -209,14 +242,12 @@ def reconstruct(mu, rndvar=None, bnds=None):
         >>> x = np.linspace(-1,1)
         >>> plot(x,sol(x))              
     '''
-    result = 0
     # Discrete case
     if rndvar is not None:
-        rndvar = np.array(rndvar) # convert things to numpy arrays
+        rndvar = np.asarray(rndvar)
         if bnds is not None:
             print('WARNING: You specified BOTH x and boundaries. I will assume this is a discrete distribution. If you want to calculate a continuous distribution, please specify bnd ONLY.')
-        result = maxent_reconstruct_d(rndvar, mu)
+        return maxent_reconstruct_d(rndvar, mu)
     # Continuous case
     else:
-        result = maxent_reconstruct_c(mu, bnds)
-    return result
+        return maxent_reconstruct_c(mu, bnds)
