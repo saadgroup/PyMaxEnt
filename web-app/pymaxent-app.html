@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyMaxEnt — Maximum Entropy Reconstruction</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink:#0f0f0f; --ink2:#444; --ink3:#888;
+  --bg:#fff; --bg2:#f5f4f0; --bg3:#eeece6;
+  --acc:#1a3aff; --acc2:#ff4020;
+  --bdr:rgba(0,0,0,0.1);
+  --mono:'DM Mono',monospace; --sans:'DM Sans',sans-serif; --disp:'Syne',sans-serif;
+  --rad:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{ --ink:#f0ede6; --ink2:#b0ad9f; --ink3:#666; --bg:#141410; --bg2:#1e1d18; --bg3:#28271f; --acc:#4d6bff; --acc2:#ff6040; --bdr:rgba(255,255,255,0.08); }
+}
+body { font-family:var(--sans); background:var(--bg); color:var(--ink); min-height:100vh; line-height:1.6; }
+header { border-bottom:1px solid var(--bdr); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:56px; position:sticky; top:0; background:var(--bg); z-index:10; }
+.logo { font-family:var(--disp); font-size:1.1rem; font-weight:700; letter-spacing:-0.02em; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.logo-dot { width:8px; height:8px; border-radius:50%; background:var(--acc); display:inline-block; }
+.badge { font-family:var(--mono); font-size:0.68rem; color:var(--ink3); background:var(--bg3); padding:3px 8px; border-radius:4px; }
+.hero { padding:3rem 2rem 2rem; max-width:900px; margin:0 auto; }
+.hero-tag { font-family:var(--mono); font-size:0.72rem; color:var(--acc); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:0.8rem; }
+.hero h1 { font-family:var(--disp); font-size:clamp(1.8rem,4vw,2.8rem); font-weight:700; letter-spacing:-0.03em; line-height:1.1; margin-bottom:0.8rem; }
+.hero h1 em { font-style:normal; color:var(--acc); }
+.hero p { font-size:1rem; color:var(--ink2); max-width:560px; line-height:1.7; }
+.main { max-width:900px; margin:0 auto; padding:0 2rem 4rem; display:grid; gap:1.5rem; }
+
+/* boot banner */
+#boot-banner { background:var(--bg2); border:1px solid var(--bdr); border-radius:var(--rad); padding:1.2rem 1.5rem; display:flex; align-items:center; gap:12px; font-family:var(--mono); font-size:0.82rem; color:var(--ink2); }
+#boot-bar-wrap { flex:1; height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; }
+#boot-bar { height:100%; width:0%; background:var(--acc); border-radius:2px; transition:width 0.4s; }
+#boot-label { white-space:nowrap; }
+
+.tabs { display:flex; border:1px solid var(--bdr); border-radius:var(--rad); overflow:hidden; background:var(--bg2); }
+.tab { flex:1; padding:.8rem 1.2rem; cursor:pointer; font-family:var(--disp); font-size:.88rem; font-weight:600; color:var(--ink3); background:transparent; border:none; transition:all .15s; text-align:center; }
+.tab.active { background:var(--bg); color:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.tab:first-child { border-radius:var(--rad) 0 0 var(--rad); }
+.tab:last-child  { border-radius:0 var(--rad) var(--rad) 0; }
+.card { background:var(--bg); border:1px solid var(--bdr); border-radius:var(--rad); padding:1.5rem; }
+.card-title { font-family:var(--disp); font-size:.8rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); margin-bottom:1.2rem; }
+.field { margin-bottom:1.2rem; }
+.field label { display:block; font-size:.8rem; font-weight:500; color:var(--ink2); margin-bottom:.4rem; }
+.field input { width:100%; padding:.55rem .75rem; border:1px solid var(--bdr); border-radius:8px; font-family:var(--mono); font-size:.88rem; color:var(--ink); background:var(--bg2); outline:none; transition:border-color .15s; }
+.field input:focus { border-color:var(--acc); }
+.hint { font-size:.74rem; color:var(--ink3); margin-top:.3rem; font-family:var(--mono); }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+@media(max-width:600px){ .two-col { grid-template-columns:1fr; } }
+.presets { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.6rem; }
+.preset { padding:.7rem .9rem; border:1px solid var(--bdr); border-radius:8px; cursor:pointer; background:var(--bg2); text-align:left; transition:all .12s; font-family:var(--sans); }
+.preset:hover { border-color:var(--acc); background:var(--bg); }
+.preset:disabled { opacity:0.4; cursor:not-allowed; }
+.preset-name { font-size:.82rem; font-weight:500; color:var(--ink); display:block; margin-bottom:2px; }
+.preset-desc { font-size:.72rem; color:var(--ink3); font-family:var(--mono); }
+.run-btn { width:100%; padding:.85rem; background:var(--acc); color:#fff; border:none; border-radius:8px; font-family:var(--disp); font-size:.95rem; font-weight:600; cursor:pointer; transition:opacity .15s,transform .1s; }
+.run-btn:hover { opacity:.88; }
+.run-btn:active { transform:scale(.99); }
+.run-btn:disabled { opacity:.4; cursor:not-allowed; }
+.hidden { display:none !important; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:.75rem; margin-bottom:1.5rem; }
+.stat { background:var(--bg2); border-radius:8px; padding:.85rem 1rem; }
+.stat-lbl { font-size:.72rem; color:var(--ink3); font-family:var(--mono); margin-bottom:4px; }
+.stat-val { font-family:var(--disp); font-size:1.1rem; font-weight:600; color:var(--ink); }
+.chart-wrap { position:relative; width:100%; height:300px; margin-bottom:1.5rem; }
+.pills { display:flex; flex-wrap:wrap; gap:.5rem; }
+.pill { font-family:var(--mono); font-size:.78rem; padding:4px 10px; border-radius:20px; background:var(--bg3); color:var(--ink2); }
+.pill strong { color:var(--ink); }
+.ptable { width:100%; font-family:var(--mono); font-size:.82rem; border-collapse:collapse; }
+.ptable th { text-align:left; font-size:.72rem; letter-spacing:.06em; color:var(--ink3); padding:.3rem .75rem; border-bottom:1px solid var(--bdr); font-weight:500; }
+.ptable td { padding:.45rem .75rem; border-bottom:1px solid var(--bdr); color:var(--ink); }
+.ptable tr:last-child td { border-bottom:none; }
+.pbar { height:6px; border-radius:3px; background:var(--acc); display:inline-block; vertical-align:middle; min-width:2px; }
+.msg { font-family:var(--mono); font-size:.78rem; padding:.6rem .9rem; border-radius:6px; margin-bottom:1rem; }
+.msg.ok  { background:rgba(0,180,100,.1); color:#0a8a4e; }
+.msg.err { background:rgba(255,60,30,.1); color:var(--acc2); }
+.eqbox { background:var(--bg2); border-radius:8px; padding:1rem 1.2rem; font-size:1rem; overflow-x:auto; text-align:center; min-height:2.5rem; }
+.latex-src { display:flex; align-items:center; gap:8px; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid var(--bdr); flex-wrap:wrap; }
+.latex-src code { font-family:var(--mono); font-size:0.75rem; color:var(--ink3); flex:1; overflow-x:auto; white-space:pre; text-align:left; }
+.codebox { background:var(--bg2); border-radius:8px; padding:1rem 1.2rem; position:relative; }
+.codebox pre { font-family:var(--mono); font-size:0.82rem; color:var(--ink2); white-space:pre; overflow-x:auto; margin:0; line-height:1.7; }
+.copy-btn { position:absolute; top:0.75rem; right:0.75rem; font-family:var(--mono); font-size:0.72rem; padding:3px 10px; border:1px solid var(--bdr); border-radius:4px; background:var(--bg3); color:var(--ink3); cursor:pointer; transition:all .15s; }
+.copy-btn:hover { border-color:var(--acc); color:var(--acc); }
+hr.div { border:none; border-top:1px solid var(--bdr); margin:1.2rem 0; }
+.panel { display:none; } .panel.on { display:block; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:6px; }
+footer { border-top:1px solid var(--bdr); padding:1.5rem 2rem; text-align:center; font-size:.78rem; color:var(--ink3); font-family:var(--mono); }
+footer a { color:var(--acc); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#"><span class="logo-dot"></span>PyMaxEnt</a>
+  <span class="badge">powered by Pyodide</span>
+</header>
+
+<div class="hero">
+  <p class="hero-tag">Maximum Entropy Reconstruction</p>
+  <h1>Recover distributions<br>from <em>moments</em></h1>
+  <p>Runs the actual PyMaxEnt Python code (numpy + scipy) directly in your browser via WebAssembly — no server needed.</p>
+</div>
+
+<div class="main">
+
+  <!-- Boot progress -->
+  <div id="boot-banner">
+    <div id="boot-bar-wrap"><div id="boot-bar"></div></div>
+    <span id="boot-label">Loading Python runtime…</span>
+  </div>
+
+  <div class="tabs hidden" id="ui">
+    <button class="tab active" data-p="continuous" onclick="switchMode('continuous')">Continuous</button>
+    <button class="tab"        data-p="discrete"   onclick="switchMode('discrete')">Discrete</button>
+  </div>
+
+  <div class="card hidden" id="preset-card">
+    <div class="card-title">Quick presets</div>
+    <div class="presets" id="presets"></div>
+  </div>
+
+  <div class="panel on hidden" id="panel-continuous">
+    <div class="card">
+      <div class="card-title">Input — continuous</div>
+      <div class="field">
+        <label>Moments μ₀, μ₁, μ₂, … (comma-separated)</label>
+        <input type="text" id="c-mu" value="1, 0, 0.04">
+        <div class="hint">μ₀ = normalization (usually 1), μ₁ = mean, μ₂ = 2nd moment, …</div>
+      </div>
+      <div class="two-col">
+        <div class="field"><label>Lower bound a</label><input type="number" id="c-a" value="-1" step="0.1"></div>
+        <div class="field"><label>Upper bound b</label><input type="number" id="c-b" value="1"  step="0.1"></div>
+      </div>
+      <button class="run-btn" id="c-btn" onclick="runC()">Reconstruct distribution</button>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="panel-discrete">
+    <div class="card">
+      <div class="card-title">Input — discrete</div>
+      <div class="field">
+        <label>Random variable values (comma-separated)</label>
+        <input type="text" id="d-x" value="1, 2, 3, 4, 5, 6">
+        <div class="hint">All possible outcomes, e.g. 1,2,3,4,5,6 for a die</div>
+      </div>
+      <div class="field">
+        <label>Moments μ₀, μ₁, … (comma-separated)</label>
+        <input type="text" id="d-mu" value="1, 3.5">
+        <div class="hint">μ₀ = 1 (total probability), μ₁ = mean, …</div>
+      </div>
+      <button class="run-btn" id="d-btn" onclick="runD()">Reconstruct distribution</button>
+    </div>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="card">
+      <div class="card-title">Result</div>
+      <div id="msg"></div>
+      <div class="stats" id="stats"></div>
+      <div class="chart-wrap hidden" id="chart-wrap"><canvas id="chart"></canvas></div>
+      <div id="dtable"></div>
+      <hr class="div">
+      <div class="card-title">Lagrange multipliers λ</div>
+      <div class="pills" id="pills"></div>
+      <hr class="div">
+      <div class="card-title">MaxEnt equation</div>
+      <div class="eqbox" id="eq"></div>
+      <hr class="div">
+      <div class="card-title">Python code</div>
+      <div class="codebox" id="codebox">
+        <button class="copy-btn" id="copy-btn" onclick="copyCode()">Copy</button>
+        <pre id="pycode"></pre>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Based on <a href="https://github.com/saadgroup/pymaxent" target="_blank">PyMaxEnt</a> by Tony Saad &amp; Giovanna Ruai — University of Utah, 2019. MIT License.
+  Runs in-browser via <a href="https://pyodide.org" target="_blank">Pyodide</a>.
+</footer>
+
+<!-- MathJax -->
+<script>window.MathJax = {tex:{inlineMath:[['$','$']]},svg:{fontCache:'global'},startup:{typeset:false}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<!-- Pyodide -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+// ── The actual pymaxent.py source (verbatim copy) ─────────────────────────────
+var PYMAXENT_SRC = `
+import numpy as np
+from scipy.integrate import quad
+from scipy.optimize import root
+
+def moments_c(f, k=0, bnds=[-np.inf, np.inf]):
+    def mom(x, k):
+        return x**k * f(x)
+    moms = np.zeros(k)
+    a = bnds[0]; b = bnds[1]
+    for i in range(0, k):
+        moms[i] = quad(mom, a, b, args=i)[0]
+    return moms
+
+def moments_d(f, k, x):
+    x = np.asarray(x); f = np.asarray(f); moms = []
+    for i in range(0, k):
+        xp  = np.power(x, i)
+        xpf = np.dot(xp, f)
+        moms.append(xpf)
+    return np.array(moms)
+
+def moments(f, k, rndvar=None, bnds=None):
+    if rndvar is not None:
+        if bnds is not None:
+            print('WARNING: You specified BOTH x and boundaries. Assuming discrete.')
+        return moments_d(f, k, rndvar)
+    else:
+        return moments_c(f, k, bnds)
+
+def integrand(x, lamb, k=0, discrete=False):
+    neqs = len(lamb)
+    xi = np.array([x**i for i in range(0, neqs)])
+    return x**k * np.exp(np.dot(lamb, xi))
+
+def residual_d(lamb, x, k, mu):
+    X   = np.vstack([x**i for i in range(k)])
+    phi = np.exp(lamb @ X)
+    rhs = X @ phi - np.asarray(mu)
+    return rhs
+
+def maxent_reconstruct_d(rndvar, mu):
+    mu       = np.asarray(mu); k = len(mu)
+    lambguess = np.zeros(k); lambguess[0] = -np.log(np.sqrt(2 * np.pi))
+    sol = root(residual_d, lambguess, args=(rndvar, k, mu), method='hybr')
+    lambsol       = sol.x
+    probabilities = integrand(rndvar, lambsol, k=0)
+    return probabilities, lambsol
+
+def residual_c(lamb, mu, bnds):
+    a = bnds[0]; b = bnds[1]; neqs = len(lamb); rhs = np.zeros(neqs)
+    for k in range(neqs):
+        rhs[k] = quad(integrand, a, b, args=(lamb, k))[0] - mu[k]
+    return rhs
+
+def jacobian_c(lamb, mu, bnds):
+    a = bnds[0]; b = bnds[1]; neqs = len(lamb); J = np.zeros((neqs, neqs))
+    for i in range(neqs):
+        for j in range(neqs):
+            J[i, j] = quad(integrand, a, b, args=(lamb, i + j))[0]
+    return J
+
+def maxent_reconstruct_c(mu, bnds=[-np.inf, np.inf]):
+    mu = np.asarray(mu); neqs = len(mu)
+    lambguess = np.zeros(neqs); lambguess[0] = -np.log(np.sqrt(2 * np.pi))
+    sol     = root(residual_c, lambguess, jac=jacobian_c, args=(mu, bnds), method='hybr')
+    lambsol = sol.x
+    recon   = lambda x: integrand(x, lambsol, k=0)
+    return recon, lambsol
+
+def reconstruct(mu, rndvar=None, bnds=None):
+    if rndvar is not None:
+        rndvar = np.asarray(rndvar)
+        if bnds is not None:
+            print('WARNING: Assuming discrete.')
+        return maxent_reconstruct_d(rndvar, mu)
+    else:
+        return maxent_reconstruct_c(mu, bnds)
+`;
+
+// ── Boot Pyodide ─────────────────────────────────────────────────────────────
+var pyodide = null;
+var mode = 'continuous';
+var chart = null;
+
+var PRESETS = {
+  continuous: [
+    {name:'Gaussian',     desc:'3 moments, [-1,1]', mu:'1, 0, 0.04',                                                                    a:-1, b:1},
+    {name:'Uniform',      desc:'3 moments, [0,1]',  mu:'1, 0.5, 0.3333',                                                                a:0,  b:1},
+    {name:'Beta-like',    desc:'5 moments, [0,1]',  mu:'1, 0.25, 0.07692308, 0.02747253, 0.01098901',                                   a:0,  b:1},
+    {name:'Bimodal',      desc:'5 moments, [0,1]',  mu:'0.99988369, 0.37500209, 0.16005095, 0.07410077, 0.03608318',                    a:0,  b:1},
+  ],
+  discrete: [
+    {name:'Fair die',     desc:'μ=(1, 3.5)',       mu:'1, 3.5',         x:'1,2,3,4,5,6'},
+    {name:'Biased die',   desc:'μ=(1, 4.417)',     mu:'1, 4.417',       x:'1,2,3,4,5,6'},
+    {name:'Die 3 moments',desc:'μ=(1,3.5,15.17)',  mu:'1, 3.5, 15.17', x:'1,2,3,4,5,6'},
+    {name:'Fair coin',    desc:'μ=(1, 0.5)',       mu:'1, 0.5',         x:'0,1'},
+    {name:'Loaded coin',  desc:'70% heads',        mu:'1, 0.7',         x:'0,1'},
+    {name:'Fair d4',      desc:'μ=(1, 2.5)',       mu:'1, 2.5',         x:'1,2,3,4'}
+  ]
+};
+
+function setProgress(pct, label) {
+  document.getElementById('boot-bar').style.width = pct + '%';
+  document.getElementById('boot-label').textContent = label;
+}
+
+async function bootPyodide() {
+  setProgress(10, 'Loading Python runtime…');
+  pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/' });
+  setProgress(40, 'Loading numpy…');
+  await pyodide.loadPackage('numpy');
+  setProgress(70, 'Loading scipy…');
+  await pyodide.loadPackage('scipy');
+  setProgress(90, 'Loading PyMaxEnt…');
+  pyodide.runPython(PYMAXENT_SRC);
+  setProgress(100, 'Ready.');
+  setTimeout(function() {
+    document.getElementById('boot-banner').classList.add('hidden');
+    document.getElementById('ui').classList.remove('hidden');
+    document.getElementById('preset-card').classList.remove('hidden');
+    document.getElementById('panel-continuous').classList.remove('hidden');
+    document.getElementById('panel-discrete').classList.remove('hidden');
+    // keep only the active panel visible
+    document.getElementById('panel-discrete').style.display = 'none';
+    renderPresets();
+  }, 400);
+}
+
+bootPyodide().catch(function(e) {
+  setProgress(100, 'Failed to load: ' + e.message);
+  document.getElementById('boot-bar').style.background = '#ff4020';
+});
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function csv(s) { return s.split(',').map(function(v){ return parseFloat(v.trim()); }).filter(function(v){ return !isNaN(v); }); }
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function setMsg(text, type) {
+  var el = document.getElementById('msg');
+  el.className = 'msg ' + (type || 'ok');
+  el.textContent = text;
+}
+
+function busy(id, on) {
+  var btn = document.getElementById(id);
+  btn.disabled = on;
+  btn.innerHTML = on ? '<span class="spin"></span>Computing…' : 'Reconstruct distribution';
+}
+
+function showStats(rows) {
+  document.getElementById('stats').innerHTML = rows.map(function(r) {
+    return '<div class="stat"><div class="stat-lbl">' + r[0] + '</div><div class="stat-val">' + r[1] + '</div></div>';
+  }).join('');
+}
+
+function showPills(lambdas) {
+  document.getElementById('pills').innerHTML = lambdas.map(function(l, i) {
+    return '<span class="pill"><strong>λ' + i + '</strong> = ' + l.toExponential(6) + '</span>';
+  }).join('');
+}
+
+function fmtCoeff(l) {
+  // Format a lambda coefficient cleanly for LaTeX:
+  // Use 4 sig figs, avoid ugly e-notation — convert to decimal if exponent is manageable
+  var s = l.toPrecision(4);
+  // toPrecision gives e-notation for very small/large; keep it but clean up
+  // e.g. 1.234e+3 -> 1234, 1.234e-3 -> 0.001234 if exp > -5, else keep sci
+  var abs = Math.abs(l);
+  if (abs === 0) return '0';
+  if (abs >= 0.001 && abs < 100000) {
+    // Use fixed decimal, 4 sig figs
+    var d = Math.max(0, 4 - Math.floor(Math.log10(abs)) - 1);
+    return l.toFixed(d);
+  }
+  // Scientific notation, clean up: 1.234 \times 10^{5}
+  var exp = Math.floor(Math.log10(abs));
+  var mant = (l / Math.pow(10, exp)).toPrecision(4);
+  // strip trailing zeros after decimal
+  mant = parseFloat(mant).toString();
+  return mant + ' \\times 10^{' + exp + '}';
+}
+
+function showEq(lambdas) {
+  var terms = lambdas.map(function(l, i) {
+    var c = fmtCoeff(l);
+    // wrap negative coefficients in parens so sign is clear
+    var sign = (l >= 0 && i > 0) ? ' + ' : (i > 0 ? ' ' : '');
+    if (i === 0) return c;
+    if (i === 1) return sign + c + '\\, x';
+    return sign + c + '\\, x^{' + i + '}';
+  }).join('');
+
+  var latex = 'p(x) = \\exp\\!\\Bigl(' + terms + '\\Bigr)';
+  var display = '$$' + latex + '$$';
+
+  var el = document.getElementById('eq');
+  // Show the LaTeX source in a small code line, then the rendered math below
+  el.innerHTML =
+    '<div class="latex-src" id="latex-src-wrap">' +
+      '<code id="latex-raw">\\(' + latex + '\\)</code>' +
+      '<button class="copy-btn" style="position:static;margin-left:8px;" onclick="copyLatex()">Copy LaTeX</button>' +
+    '</div>' +
+    '<div id="latex-rendered">' + display + '</div>';
+
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([document.getElementById('latex-rendered')]).catch(function(){});
+  }
+}
+
+function copyLatex() {
+  var text = document.getElementById('latex-raw').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var btns = document.querySelectorAll('.copy-btn');
+    btns.forEach(function(b){ if(b.textContent.indexOf('LaTeX')>-1){ b.textContent='Copied!'; setTimeout(function(){b.textContent='Copy LaTeX';},1500); }});
+  });
+}
+
+function showPyCode(lambdas) {
+  var arr = 'lambdas = [\n' +
+    lambdas.map(function(l){ return '    ' + l; }).join(',\n') +
+    '\n]';
+  var fn = [
+    'import numpy as np',
+    '',
+    arr,
+    '',
+    'def p(x):',
+    '    exponent = sum(lambdas[i] * x**i for i in range(len(lambdas)))',
+    '    return np.exp(exponent)',
+  ].join('\n');
+  document.getElementById('pycode').textContent = fn;
+}
+
+function copyCode() {
+  var text = document.getElementById('pycode').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function renderPresets() {
+  var g = document.getElementById('presets');
+  g.innerHTML = '';
+  PRESETS[mode].forEach(function(p) {
+    var btn = document.createElement('button');
+    btn.className = 'preset';
+    if (!pyodide) btn.disabled = true;
+    btn.innerHTML = '<span class="preset-name">' + p.name + '</span><span class="preset-desc">' + p.desc + '</span>';
+    btn.onclick = function() { applyPreset(p); };
+    g.appendChild(btn);
+  });
+}
+
+function applyPreset(p) {
+  if (mode === 'continuous') {
+    document.getElementById('c-mu').value = p.mu;
+    document.getElementById('c-a').value  = p.a;
+    document.getElementById('c-b').value  = p.b;
+    runC();
+  } else {
+    document.getElementById('d-mu').value = p.mu;
+    document.getElementById('d-x').value  = p.x;
+    runD();
+  }
+}
+
+function switchMode(m) {
+  mode = m;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.p === m); });
+  document.getElementById('panel-continuous').style.display = m === 'continuous' ? '' : 'none';
+  document.getElementById('panel-discrete').style.display   = m === 'discrete'   ? '' : 'none';
+  hide('results');
+  renderPresets();
+}
+
+// ── Run continuous reconstruction ─────────────────────────────────────────────
+function runC() {
+  if (!pyodide) { alert('Python runtime not ready yet.'); return; }
+  var mu = csv(document.getElementById('c-mu').value);
+  var a  = parseFloat(document.getElementById('c-a').value);
+  var b  = parseFloat(document.getElementById('c-b').value);
+  if (!mu.length || isNaN(a) || isNaN(b) || a >= b) { setMsg('Invalid input.', 'err'); show('results'); return; }
+
+  busy('c-btn', true);
+
+  // Use setTimeout so the spinner renders before Python blocks
+  setTimeout(function() {
+    try {
+      pyodide.globals.set('_mu',   pyodide.toPy(mu));
+      pyodide.globals.set('_bnds', pyodide.toPy([a, b]));
+
+      pyodide.runPython([
+        'import numpy as np',
+        '_recon, _lambsol = reconstruct(_mu, bnds=_bnds)',
+        '_xs = np.linspace(_bnds[0], _bnds[1], 300)',
+        '_ys = np.array([float(_recon(float(x))) for x in _xs])',
+        '_trapfn = getattr(np, "trapezoid", getattr(np, "trapz", None))',
+        '_area = float(_trapfn(_ys, _xs))',
+        '_mean = float(_trapfn(_xs * _ys, _xs)) / _area',
+        '_peak = float(np.max(_ys))',
+        '_lamblist = _lambsol.tolist()',
+        '_xslist = _xs.tolist()',
+        '_yslist = _ys.tolist()',
+      ].join('\n'));
+
+      var lambdas = pyodide.globals.get('_lamblist').toJs();
+      var xs      = pyodide.globals.get('_xslist').toJs();
+      var ys      = pyodide.globals.get('_yslist').toJs();
+      var area    = pyodide.globals.get('_area');
+      var mean    = pyodide.globals.get('_mean');
+      var peak    = pyodide.globals.get('_peak');
+
+      showStats([
+        ['Moments', mu.length], ['Normalization', area.toFixed(5)],
+        ['Mean', mean.toFixed(5)], ['Peak', peak.toFixed(4)],
+        ['λ count', lambdas.length]
+      ]);
+      setMsg('Done. Normalization = ' + area.toFixed(5) + '.', 'ok');
+      drawLine(xs, ys);
+      document.getElementById('chart-wrap').classList.remove('hidden');
+      document.getElementById('dtable').innerHTML = '';
+      showPills(lambdas);
+      showEq(lambdas);
+      showPyCode(lambdas);
+      show('results');
+    } catch(e) {
+      setMsg('Python error: ' + e.message, 'err');
+      show('results');
+    }
+    busy('c-btn', false);
+  }, 30);
+}
+
+// ── Run discrete reconstruction ───────────────────────────────────────────────
+function runD() {
+  if (!pyodide) { alert('Python runtime not ready yet.'); return; }
+  var mu = csv(document.getElementById('d-mu').value);
+  var xs = csv(document.getElementById('d-x').value);
+  if (!mu.length || xs.length < 2)  { setMsg('Need ≥2 outcomes and ≥1 moment.', 'err'); show('results'); return; }
+  if (mu.length > xs.length)        { setMsg('More moments than outcomes.', 'err'); show('results'); return; }
+
+  busy('d-btn', true);
+
+  setTimeout(function() {
+    try {
+      pyodide.globals.set('_mu',     pyodide.toPy(mu));
+      pyodide.globals.set('_rndvar', pyodide.toPy(xs));
+
+      pyodide.runPython([
+        'import numpy as np',
+        '_probs, _lambsol = reconstruct(_mu, rndvar=np.array(_rndvar))',
+        '_probs = np.array(_probs, dtype=float)',
+        '_total = float(np.sum(_probs))',
+        '_mean  = float(np.dot(np.array(_rndvar, dtype=float), _probs))',
+        '_entropy = float(-np.sum(_probs * np.log(np.clip(_probs, 1e-300, None))))',
+        '_lamblist  = _lambsol.tolist()',
+        '_probslist = _probs.tolist()',
+      ].join('\n'));
+
+      var lambdas = pyodide.globals.get('_lamblist').toJs();
+      var probs   = pyodide.globals.get('_probslist').toJs();
+      var total   = pyodide.globals.get('_total');
+      var mean    = pyodide.globals.get('_mean');
+      var entropy = pyodide.globals.get('_entropy');
+
+      showStats([
+        ['Outcomes', xs.length], ['Moments', mu.length],
+        ['Total prob', total.toFixed(5)], ['Mean', mean.toFixed(5)],
+        ['Entropy', entropy.toFixed(5)]
+      ]);
+      setMsg('Done.', 'ok');
+      drawBar(xs, probs);
+      document.getElementById('chart-wrap').classList.remove('hidden');
+      drawTable(xs, probs);
+      showPills(lambdas);
+      showEq(lambdas);
+      showPyCode(lambdas);
+      show('results');
+    } catch(e) {
+      setMsg('Python error: ' + e.message, 'err');
+      show('results');
+    }
+    busy('d-btn', false);
+  }, 30);
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function drawLine(xs, ys) {
+  if (chart) { chart.destroy(); chart = null; }
+  var step = Math.max(1, Math.floor(xs.length / 300));
+  chart = new Chart(document.getElementById('chart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: xs.filter(function(_,i){return i%step===0;}).map(function(x){return x.toFixed(3);}),
+      datasets: [{
+        data: ys.filter(function(_,i){return i%step===0;}).map(function(v){return isFinite(v)?v:0;}),
+        borderColor:'#1a3aff', borderWidth:2, fill:true,
+        backgroundColor:'rgba(26,58,255,0.08)', pointRadius:0, tension:0.3
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(c){return 'p(x) = '+c.parsed.y.toFixed(5);}}} },
+      scales:{
+        x:{ticks:{maxTicksLimit:10,color:'#888',font:{family:'DM Mono',size:11}},grid:{color:'rgba(128,128,128,0.1)'}},
+        y:{min:0,ticks:{color:'#888',font:{family:'DM Mono',size:11}},grid:{color:'rgba(128,128,128,0.1)'}}
+      }
+    }
+  });
+}
+
+function drawBar(xs, probs) {
+  if (chart) { chart.destroy(); chart = null; }
+  chart = new Chart(document.getElementById('chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: xs.map(String),
+      datasets: [{
+        data: probs.map(function(p){return parseFloat(p.toFixed(6));}),
+        backgroundColor:'rgba(26,58,255,0.7)', borderColor:'#1a3aff', borderWidth:1.5, borderRadius:4
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(c){return 'p = '+c.parsed.y.toFixed(6);}}} },
+      scales:{
+        x:{ticks:{color:'#888',font:{family:'DM Mono',size:12}},grid:{display:false}},
+        y:{min:0,ticks:{color:'#888',font:{family:'DM Mono',size:11}},grid:{color:'rgba(128,128,128,0.1)'}}
+      }
+    }
+  });
+}
+
+function drawTable(xs, probs) {
+  var maxP = Math.max.apply(null, probs);
+  var rows = xs.map(function(x, i) {
+    var p = probs[i], bw = Math.round(p/maxP*120);
+    return '<tr><td>'+x+'</td><td>'+p.toFixed(7)+'</td><td>'+(p*100).toFixed(3)+'%</td><td><span class="pbar" style="width:'+bw+'px"></span></td></tr>';
+  }).join('');
+  document.getElementById('dtable').innerHTML =
+    '<table class="ptable"><thead><tr><th>Value</th><th>Probability</th><th>%</th><th>Bar</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+</script>
+</body>
+</html>
